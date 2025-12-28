@@ -1,0 +1,74 @@
+phi_true <- c(0.010, 1.55, -0.88, 0.03, -1.05, 0.35)
+sigma2_true <- 0.082
+gamma_true <- 60      # smoothness parameter
+c_true <- 0.08        # location parameter
+d <- 2
+N <- 2000
+print (phi_true)
+print(sigma2_true)
+print(N)
+set.seed(123)         #to ensure the data is the same each time we run
+simulate_series <- function(N, phi, sigma2, gamma, c, d)
+  p <- 2
+# Create empty vector
+y <- numeric(N)
+
+# Initialize starting values
+y[1:2] <- 0 #The first 2 values of the series are set to zero
+
+# Generate series
+for (t in 3:N){                   # Here the series starts to generate from t=3 upto N
+  Ft <- 1 - exp(-60 * (y[t - 2] - 0.08)^2)
+  mu_t <- 0.01 + 1.55*y[t - 1] -0.88*y[t - 2] +
+    (0.03 -1.05*y[t - 1] + 0.35*y[t - 2]) * Ft
+  y[t] <- mu_t + rnorm(1, sd = sqrt(0.082))
+}
+return(y)
+print(length(y))
+saveRDS(y, file = "simulated_ESTAR_data.rds")
+y <- readRDS("simulated_ESTAR_data.rds")
+getwd()
+setwd("C:/Users/hp/OneDrive/Documents")
+y <- readRDS("simulated_ESTAR_data.rds")
+plot(y, type ="l", main = "simulated_ESTAR_data", ylab = "y_t", xlab="time")
+install.packages("strucchange")
+library(strucchange)
+install.packages("urca")
+library(urca)
+pacf(y, main = "PACF plot for the Simulated_ESTAR_data")
+class(y)
+y <- ts(y)
+ymat<- embed(y, p+1) #creates a matrix where exch row contains (y, yt-1,yt-2, yt-3, yt-4)
+yt <- ymat[,1]      #Extracts the first column of the matrix ymat
+ylags <-ymat[,-1]   #takes all the other columns except the first.
+estar_lstar_test <- function (d){yt_d <- ylags[,d] #yt-d <- ylags[,d] selects the lagged variable that will serve as the STAR function
+z1 <- ylags          #(yt-1, yt-2, yt-3, yt-4) representing the linear model under null hypothesis
+z2 <- yt_d * ylags      #multiply each yt-d by the ylags. represents first order nonlnear term of the model
+z3 <- (yt_d ^ 2) * ylags   #second order nonlinear term of the model
+z4 <- (yt_d ^3) * ylags     #third order nonlinear term of the model
+z <- cbind (z1, z2, z3, z4) #puts all groups of variables togeter into one big design matrix
+full_model <- lm(yt~z)      #fits the unrestricted (full) auxiliary model
+SSRU <-sum(resid(full_model)^2)
+N <-nrow(z)
+k <-length (coef(full_model))
+model_Ho1 <- lm (yt ~ cbind(z1, z2, z3))
+SSR_Ho1 <- sum(resid(model_Ho1)^2)
+q1 <- ncol(z4)   #number of restrictions treated in H01
+fo1 <- ((SSR_Ho1 - SSRU)/q1) / (SSRU/(N-k)) #computes the F statistics
+po1 <- 1-pf(fo1, q1, N-k)   #Converts the F statistics into p_value
+model_Ho2 <- lm(yt ~ cbind(z1,z2))
+SSR_Ho2 <- sum (resid(model_Ho2)^2)
+q2 <- ncol(z3) +ncol(z4)
+fo2 <-((SSR_Ho2 - SSRU)/q2) / (SSRU / (N-k))
+po2 <- 1 - pf(fo2, q2, N-k)
+model_Ho3 <- lm(yt ~z1)
+SSR_Ho3 <- sum(resid(model_Ho3)^2)
+q3 <- ncol(z2) + ncol(z3) + ncol(z4)
+fo3 <- ((SSR_Ho3 - SSRU)/q3) / (SSRU/(N-k))
+po3 <- 1- pf (fo3, q3, N-k)
+return (data.frame(Hypothesis = c("Ho1:c(Ho1: B4=0", "Ho2: B3=B4=0", "Ho3: B2=B3=B4=0"),
+                    F_statistic = c(fo1, fo2, fo3),
+                    p_value = c(po1, po2, po3)))
+}
+nested_results <- estar_lstar_test(d = 2)
+print(nested_results)

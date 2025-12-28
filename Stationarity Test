@@ -1,0 +1,47 @@
+phi_true <- c(0.010, 1.55, -0.88, 0.03, -1.05, 0.35)
+sigma2_true <- 0.082
+gamma_true <- 60      # smoothness parameter
+c_true <- 0.08        # location parameter
+d <- 2
+N <- 2002
+print (phi_true)
+print(sigma2_true)
+print(N)
+set.seed(123)         #to ensure the data is the same each time we run
+simulate_series <- function(N, phi, sigma2, gamma, c, d){
+  p <- 2
+# Create empty vector
+y <- numeric(N)
+
+# Initialize starting values
+y[1:2] <- 0 #The first 2 values of the series are set to zero
+
+# Generate series
+for (t in 3:N){                   # Here the series starts to generate from t=3 upto N
+  Ft <- 1 - exp(-60 * (y[t - 2] - 0.08)^2)
+  mu_t <- 0.01 + 1.55*y[t - 1] -0.88*y[t - 2] +
+    (0.03 -1.05*y[t - 1] + 0.35*y[t - 2]) * Ft
+  y[t] <- mu_t + rnorm(1, sd = sqrt(0.082))
+}
+return(y[-c(1:2)])}
+y=simulate_series (N, phi, sigma2, gamma, c, d)
+
+print((y[1:10]))
+save(y, file = "simulated1")
+y <- readRDS("simulated_ESTAR_data.rds")
+getwd()
+setwd("C:/Users/hp/OneDrive/Documents")
+y <- readRDS("simulated_ESTAR_data.rds")
+
+
+plot(y, type ="l", main = "simulated_ESTAR_data", ylab = "y_t", xlab="time")
+install.packages("urca")
+library(urca)
+za_test <- ur.za(y, model = "both", lag = 2)
+summary(za_test)
+za_test@teststat
+za_test@cval
+za_test <- ur.za(y, model = "intercept", lag = 2)
+summary(za_test)
+za_test <- ur.za(y, model = "trend",lag = 2)
+summary(za_test)

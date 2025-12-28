@@ -1,0 +1,65 @@
+# Exponential-Smooth-Transition-Autoregressive-Model-R-codes
+This are R code for testing nonlinearity, ESTAR-LSTAR  and  Stationarity Test
+phi_true <- c(0.010, 1.55, -0.88, 0.03, -1.05, 0.35)
+sigma2_true <- 0.082
+gamma_true <- 60      # smoothness parameter
+c_true <- 0.08        # location parameter
+d <- 2
+N <- 2000
+print (phi_true)
+print(sigma2_true)
+print(N)
+set.seed(123)         #to ensure the data is the same each time we run
+simulate_series <- function(N, phi, sigma2, gamma, c, d)
+  p <- 2
+# Create empty vector
+y <- numeric(N)
+
+# Initialize starting values
+y[1:2] <- 0 #The first 2 values of the series are set to zero
+
+# Generate series
+for (t in 3:N){                   # Here the series starts to generate from t=3 upto N
+  Ft <- 1 - exp(-60 * (y[t - 2] - 0.08)^2)
+  mu_t <- 0.01 + 1.55*y[t - 1] -0.88*y[t - 2] +
+    (0.03 -1.05*y[t - 1] + 0.35*y[t - 2]) * Ft
+  y[t] <- mu_t + rnorm(1, sd = sqrt(0.082))
+}
+return(y)
+print(length(y))
+saveRDS(y, file = "simulated_ESTAR_data.rds")
+y <- readRDS("simulated_ESTAR_data.rds")
+getwd()
+setwd("C:/Users/hp/OneDrive/Documents")
+y <- readRDS("simulated_ESTAR_data.rds")
+plot(y, type ="l", main = "simulated_ESTAR_data", ylab = "y_t", xlab="time")
+install.packages("strucchange")
+library(strucchange)
+install.packages("urca")
+library(urca)
+pacf(y, main = "PACF plot for the Simulated_ESTAR_data")
+class(y)
+y <- ts(y)
+p <- 4
+T <- length(y)
+ymat<- embed(y, p+1) #creates a matrix where exch row contains (y, yt-1,yt-2, yt-3, yt-4)
+yt <- ymat[,1]      #Extracts the first column of the matrix ymat
+ylags <-ymat[,-1]   #takes all the other columns except the first.
+lm_test_star <- function (d){yt_d <- ylags[,d] #yt-d <- ylags[,d] selects the lagged variable that will serve as the STAR function
+z1 <- ylags          #(yt-1, yt-2, yt-3, yt-4) representing the linear model under null hypothesis
+z2 <- yt_d * ylags      #multiply each yt-d by the ylags. represents first order nonlnear term of the model
+z3 <- (yt_d ^ 2) * ylags   #second order nonlinear term of the model
+z4 <- (yt_d ^3) * ylags     #third order nonlinear term of the model
+z <- cbind (z1, z2, z3, z4) #puts all groups of variables togeter into one big design matrix
+model0 <-lm (yt ~ z1)       #model0 fits the restricted null model which assumes linearity
+SSRO <- sum(resid(model0)^2) #SSRO is the sum of squared residuals for the linear regression model under the null hypothesis
+model1 <- lm (yt ~ z)        #model1 fits the unrestricted full model
+SSR1 <- sum(resid(model1)^2) #SSR1 is the sum of squared residuals based on the full auxiliary regression
+lm <-(T-p)*(SSRO-SSR1)/SSRO #computes LM statistics for linearity test
+df <- 3*p                   #degrees of freedom for the chi square distribution
+pvalue <- 1-pchisq(lm,df)    #pvalue is obtained from the chi-square distribution with 3p degrees of fredom
+return (c(lm=lm, p_value = pvalue))  
+  }
+results <- sapply (1:4, function (d)lm_test_star(d)) #runs lm test function for each possible delay parameter 1, 2,3,4
+colnames(results) <-(paste ("d=", 1:4))
+print(results)
